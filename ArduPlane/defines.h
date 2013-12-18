@@ -242,18 +242,29 @@ enum log_messages {
 #define CONFIG_INS_MPU6000 2
 #define CONFIG_INS_STUB    3
 #define CONFIG_INS_PX4     4
-#define CONFIG_IMU_MPU6000_I2C 5
+#define CONFIG_INS_MPU6000_I2C 5
+#define CONFIG_INS_ITG3200 6
 
 // barometer driver types
 #define AP_BARO_BMP085   1
 #define AP_BARO_MS5611   2
 #define AP_BARO_PX4      3
 #define AP_BARO_HIL      4
+#define AP_BARO_BMP085_MPNG    5
+
+#define AP_BARO_MS5611_SPI 1
+#define AP_BARO_MS5611_I2C 2
 
 // compass driver types
 #define AP_COMPASS_HMC5843   1
 #define AP_COMPASS_PX4       2
 #define AP_COMPASS_HIL       3
+
+// MPNG board types
+#define RCTIMER_CRIUS_V2 1
+#define CRIUS_V1 2
+#define HK_RED_MULTIWII_PRO 3
+#define BLACK_VORTEX 4 
 
 // altitude control algorithms
 enum {

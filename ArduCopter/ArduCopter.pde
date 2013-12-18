@@ -1,6 +1,7 @@
 /// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
-
-#define THISFIRMWARE "ArduCopter-MPNG V3.0.1 R2"
+#ifndef THISFIRMWARE
+#  define THISFIRMWARE "ArduCopter-MPNG V3.0.1 R3b"
+#endif
 /*
  *  ArduCopter Version 3.0
  *  Creator:        Jason Short
@@ -172,7 +173,7 @@ static DataFlash_Empty DataFlash;
 ////////////////////////////////////////////////////////////////////////////////
 // the rate we run the main loop at
 ////////////////////////////////////////////////////////////////////////////////
-static const AP_InertialSensor::Sample_rate ins_sample_rate = AP_InertialSensor::RATE_200HZ;
+static const AP_InertialSensor::Sample_rate ins_sample_rate = AP_InertialSensor::RATE_100HZ;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Sensors
@@ -203,6 +204,8 @@ static AP_ADC_ADS7844 adc;
 static AP_InertialSensor_MPU6000 ins;
 #elif CONFIG_IMU_TYPE == CONFIG_IMU_MPU6000_I2C
 static AP_InertialSensor_MPU6000_I2C ins;
+#elif CONFIG_IMU_TYPE == CONFIG_IMU_ITG3200
+static AP_InertialSensor_ITG3200 ins(MPNG_BOARD_TYPE);
 #elif CONFIG_IMU_TYPE == CONFIG_IMU_OILPAN
 static AP_InertialSensor_Oilpan ins(&adc);
 #elif CONFIG_IMU_TYPE == CONFIG_IMU_SITL
@@ -222,6 +225,8 @@ static SITL sitl;
 static AP_Baro_BMP085 barometer;
   #elif CONFIG_BARO == AP_BARO_PX4
 static AP_Baro_PX4 barometer;
+  #elif CONFIG_BARO == AP_BARO_BMP085_MPNG
+      static AP_Baro_BMP085_MPNG barometer;
   #elif CONFIG_BARO == AP_BARO_MS5611
    #if CONFIG_MS5611_SERIAL == AP_BARO_MS5611_SPI
 static AP_Baro_MS5611 barometer(&AP_Baro_MS5611::spi);
@@ -244,22 +249,22 @@ static AP_Compass_HMC5843 compass;
 AP_GPS_Auto     g_gps_driver(&g_gps);
 
  #elif GPS_PROTOCOL == GPS_PROTOCOL_NMEA
-AP_GPS_NMEA     g_gps_driver();
+AP_GPS_NMEA     g_gps_driver;
 
  #elif GPS_PROTOCOL == GPS_PROTOCOL_SIRF
-AP_GPS_SIRF     g_gps_driver();
+AP_GPS_SIRF     g_gps_driver;
 
  #elif GPS_PROTOCOL == GPS_PROTOCOL_UBLOX
-AP_GPS_UBLOX    g_gps_driver();
+AP_GPS_UBLOX    g_gps_driver;
 
  #elif GPS_PROTOCOL == GPS_PROTOCOL_MTK
-AP_GPS_MTK      g_gps_driver();
+AP_GPS_MTK      g_gps_driver;
 
  #elif GPS_PROTOCOL == GPS_PROTOCOL_MTK19
-AP_GPS_MTK19    g_gps_driver();
+AP_GPS_MTK19    g_gps_driver;
 
  #elif GPS_PROTOCOL == GPS_PROTOCOL_NONE
-AP_GPS_None     g_gps_driver();
+AP_GPS_None     g_gps_driver;
 
  #else
   #error Unrecognised GPS_PROTOCOL setting.
@@ -849,23 +854,22 @@ AP_Param param_loader(var_info, WP_START_BYTE);
   microseconds)
  */
 static const AP_Scheduler::Task scheduler_tasks[] PROGMEM = {
-    { update_GPS,            2,     900 },
-    { update_navigation,     10,    500 },
-    { medium_loop,           2,     700 },
-    { update_altitude,      10,    1000 },
-    { fifty_hz_loop,         2,     950 },
-    { run_nav_updates,      10,     800 },
-    { slow_loop,            10,     500 },
-    { gcs_check_input,	     2,     700 },
-    { gcs_send_heartbeat,  100,     700 },
-    { gcs_data_stream_send,  2,    1500 },
-    { gcs_send_deferred,     2,    1200 },
-    { compass_accumulate,    2,     700 },
-    { barometer_accumulate,  2,     900 },
-    { super_slow_loop,     100,    1100 },
-    { perf_update,        1000,     500 }
+    { update_GPS,            2,    1150 }, // 0
+    { update_navigation,    10,     500 }, // 1
+    { medium_loop,           2,     700 }, // 2
+    { update_altitude,      10,    1000 }, // 3
+    { fifty_hz_loop,         2,    1300 }, // 4
+    { run_nav_updates,      10,    1150 }, // 5
+    { slow_loop,            10,     550 }, // 6
+    { gcs_check_input,	     2,    1300 }, // 7
+    { gcs_send_heartbeat,  100,     700 }, // 8
+    { gcs_data_stream_send,  2,    1500 }, // 9
+    { gcs_send_deferred,     2,    1200 }, // 10
+    { compass_accumulate,    2,    1200 }, // 11
+    { barometer_accumulate,  2,     800 }, // 12
+    { super_slow_loop,     100,    1100 }, // 13
+    { perf_update,        1000,     550 }  // 14 
 };
-
 
 void setup() {
     // this needs to be the first call, as it fills memory with
@@ -919,9 +923,6 @@ static void barometer_accumulate(void)
     barometer.accumulate();
 }
 
-// enable this to get console logging of scheduler performance
-#define SCHEDULER_DEBUG 1
-
 static void perf_update(void)
 {
     if (g.log_bitmask & MASK_LOG_PM)
@@ -943,7 +944,7 @@ void loop()
 
     // We want this to execute fast
     // ----------------------------
-    if (ins.num_samples_available() >= 2) {
+    if (ins.num_samples_available() >= 1) {
 
         // check loop time
         perf_info_check_loop_time(timer - fast_loopTimer);
@@ -960,12 +961,14 @@ void loop()
 
         // tell the scheduler one tick has passed
         scheduler.tick();
-    } else {
-        uint16_t dt = timer - fast_loopTimer;
-        if (dt < 10000) {
-            uint16_t time_to_next_loop = 10000 - dt;
-            scheduler.run(time_to_next_loop);
-        }
+
+        // run all the tasks that are due to run. Note that we only
+        // have to call this once per loop, as the tasks are scheduled
+        // in multiples of the main loop tick. So if they don't run on
+        // the first call to the scheduler they won't run on a later
+        // call until scheduler.tick() is called again
+        uint32_t time_available = (timer + 10000) - micros();
+       	scheduler.run(time_available);
     }
 }
 
@@ -975,11 +978,11 @@ static void fast_loop()
 {
     // IMU DCM Algorithm
     // --------------------
-    read_AHRS();
+    read_AHRS();  // ~3300us
 
     // reads all of the necessary trig functions for cameras, throttle, etc.
     // --------------------------------------------------------------------
-    update_trig();
+    update_trig();  // 430us
 
 	// Acrobatic control
     if (ap.do_flip) {
@@ -994,7 +997,7 @@ static void fast_loop()
     }
 
     // run low level rate controllers that only require IMU data
-    run_rate_controllers();
+    run_rate_controllers();  // 536us / 680us 
 
     // write out the servo PWM values
     // ------------------------------

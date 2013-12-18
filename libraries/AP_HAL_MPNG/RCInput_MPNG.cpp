@@ -14,36 +14,43 @@ using namespace MPNG;
 extern const HAL& hal;
 
 // PPM_SUM(CPPM) or PWM Signal processing
-#define SERIAL_PPM SERIAL_PPM_ENABLED
+//#define SERIAL_PPM SERIAL_PPM_ENABLED
 /*
 	SERIAL_PPM_DISABLED				// Separated channel signal (PWM) on A8-A15 pins
 	SERIAL_PPM_ENABLED				// For all boards, PPM_SUM pin is A8
 	SERIAL_PPM_ENABLED_PL1		// Use for RCTIMER CRIUS AIOP Pro v2 ONLY, connect your receiver into PPM SUM pin
 */   
+#ifndef SERIAL_PPM
+# define SERIAL_PPM SERIAL_PPM_ENABLED
+#endif
 
-//*****************  RC pin mapping  *******************************************************
-// To change pinmapping, uncomment ONE line starting with 'static unit8_t...'
+// Uncomment line below in order to use not Standard channel mapping
+//#define RC_MAPPING RC_MAP_STANDARD
+/*
+	RC_MAP_STANDARD 1
+	RC_MAP_GRAUPNER 2
+	RC_MAP_HITEC 3
+	RC_MAP_MULTIWII 4
+	RC_MAP_JR 5
+*/
 
-// Graupner/Spektrum
-// PITCH,YAW,THROTTLE,ROLL,AUX1,AUX2,CAMPITCH,CAMROLL
-//static uint8_t pinRcChannel[8] = {1, 3, 2, 0, 4, 5, 6, 7}; 
+#ifndef RC_MAPPING
+# define RC_MAPPING RC_MAP_STANDARD
+#endif
 
-// Standard (Default)
-// ROLL,PITCH,THROTTLE,YAW,MODE,AUX2,CAMPITCH,CAMROLL
-static uint8_t pinRcChannel[8] = {0, 1, 2, 3, 4, 5, 6, 7}; 
-
-// some Hitec/Sanwa/others
-// PITCH,ROLL,THROTTLE,YAW,AUX1,AUX2,CAMPITCH,CAMROLL
-//static uint8_t pinRcChannel[8] = {1, 0, 2, 3, 4, 5, 6, 7};
-
-// Multiwii
-// ROLL,THROTTLE,PITCH,YAW,AUX1,AUX2,CAMPITCH,CAMROLL
-//static uint8_t pinRcChannel[8] = {1, 2, 0, 3, 4, 5, 6, 7};
-
-// JR
-// FLAPS:MODE, GEAR:SAVE TRIMM = apm ch7
-//static uint8_t pinRcChannel[8] = {1, 2, 0, 3, 5, 6, 4, 7};
-//*****************  End of RC pin mapping  ************************************************
+#if RC_MAPPING == RC_MAP_STANDARD
+	static uint8_t pinRcChannel[8] = {0, 1, 2, 3, 4, 5, 6, 7}; // ROLL,PITCH,THROTTLE,YAW,MODE,AUX2,CAMPITCH,CAMROLL
+#elif RC_MAPPING == RC_MAP_GRAUPNER
+	static uint8_t pinRcChannel[8] = {1, 3, 2, 0, 4, 5, 6, 7}; // PITCH,YAW,THROTTLE,ROLL,AUX1,AUX2,CAMPITCH,CAMROLL
+#elif RC_MAPPING == RC_MAP_HITEC
+	static uint8_t pinRcChannel[8] = {1, 0, 2, 3, 4, 5, 6, 7}; // PITCH,ROLL,THROTTLE,YAW,AUX1,AUX2,CAMPITCH,CAMROLL
+#elif RC_MAPPING == RC_MAP_MULTIWII
+	static uint8_t pinRcChannel[8] = {1, 2, 0, 3, 4, 5, 6, 7}; // ROLL,THROTTLE,PITCH,YAW,AUX1,AUX2,CAMPITCH,CAMROLL
+#elif RC_MAPPING == RC_MAP_JR
+	static uint8_t pinRcChannel[8] = {1, 2, 0, 3, 5, 6, 4, 7}; // FLAPS:MODE, GEAR:SAVE TRIMM = apm ch7
+#else
+# error Wrong RC_MAPPING
+#endif
 
 // PPM_SUM filtering
 #define FILTER FILTER_DISABLED
@@ -209,41 +216,50 @@ void MPNGRCInput::_pwm_A8_A15_isr(void)
 	// generic split PPM  
 	// mask is pins [D0-D7] that have changed // the principle is the same on the MEGA for PORTK and [A8-A15] PINs
 	// chan = pin sequence of the port. chan begins at D2 and ends at D7
-	if (mask & 1<<0)
+	
+	if (mask & 1<<0) {
 		if (!(pin & 1<<0)) {
 			dTime = (cTime-edgeTime[0]); if (MIN_PULSEWIDTH<dTime && dTime<MAX_PULSEWIDTH) _pulse_capt[0] = dTime;
 		} else edgeTime[0] = cTime;
-	if (mask & 1<<1)
+	}
+	if (mask & 1<<1) {
 		if (!(pin & 1<<1)) {
 			dTime = (cTime-edgeTime[1]); if (MIN_PULSEWIDTH<dTime && dTime<MAX_PULSEWIDTH) _pulse_capt[1] = dTime;
 		} else edgeTime[1] = cTime;
-	if (mask & 1<<2) 
+	}
+	if (mask & 1<<2) {
 		if (!(pin & 1<<2)) {
 			dTime = (cTime-edgeTime[2]); if (MIN_PULSEWIDTH<dTime && dTime<MAX_PULSEWIDTH) _pulse_capt[2] = dTime;
 		} else edgeTime[2] = cTime;
-	if (mask & 1<<3)
+	}
+	if (mask & 1<<3) {
 		if (!(pin & 1<<3)) {
 			dTime = (cTime-edgeTime[3]); if (MIN_PULSEWIDTH<dTime && dTime<MAX_PULSEWIDTH) _pulse_capt[3] = dTime;
 		} else edgeTime[3] = cTime;
-	if (mask & 1<<4) 
+	}
+	if (mask & 1<<4) {
 		if (!(pin & 1<<4)) {
 			dTime = (cTime-edgeTime[4]); if (MIN_PULSEWIDTH<dTime && dTime<MAX_PULSEWIDTH) _pulse_capt[4] = dTime;
 		} else edgeTime[4] = cTime;
-	if (mask & 1<<5)
+	}
+	if (mask & 1<<5) {
 		if (!(pin & 1<<5)) {
 			dTime = (cTime-edgeTime[5]); if (MIN_PULSEWIDTH<dTime && dTime<MAX_PULSEWIDTH) _pulse_capt[5] = dTime;
 		} else edgeTime[5] = cTime;
-	if (mask & 1<<6)
+	}
+	if (mask & 1<<6) {
 		if (!(pin & 1<<6)) {
 			dTime = (cTime-edgeTime[6]); if (MIN_PULSEWIDTH<dTime && dTime<MAX_PULSEWIDTH) _pulse_capt[6] = dTime;
 		} else edgeTime[6] = cTime;
-	if (mask & 1<<7)
+	}
+	if (mask & 1<<7) {
 		if (!(pin & 1<<7)) {
 			dTime = (cTime-edgeTime[7]); if (MIN_PULSEWIDTH<dTime && dTime<MAX_PULSEWIDTH) _pulse_capt[7] = dTime;
 		} else edgeTime[7] = cTime;
+	}
 	
-	// failsafe counter must be zero if all ok  
-	if (mask & 1<<pinRcChannel[2]) {    // If pulse present on THROTTLE pin, clear FailSafe counter  - added by MIS fow multiwii (copy by SovGVD to megapirateNG)
+	// If we got pulse on throttle pin, report success  
+	if (mask & 1<<pinRcChannel[2]) {
 		_valid_channels = AVR_RC_INPUT_NUM_CHANNELS;
 	}
 }
@@ -258,7 +274,6 @@ void MPNGRCInput::init(void* _isrregistry) {
 
 	TCCR5A = 0; //standard mode with overflow at A and OC B and C interrupts
 	TCCR5B = (1<<CS11); //Prescaler set to 8, resolution of 0.5us
-	OCR5B = 3000; // Init OCR registers to nil output signal
 
 #if SERIAL_PPM == SERIAL_PPM_DISABLED
 		FireISRRoutine = _pwm_A8_A15_isr;
@@ -270,7 +285,7 @@ void MPNGRCInput::init(void* _isrregistry) {
 		PORTK = (1<<PCINT16); //enable internal pull up on the SERIAL SUM pin A8
 		PCMSK2 |= (1 << PCINT16); // Enable int for pin A8(PCINT16)
 		PCICR |= (1 << PCIE2); // PCINT2 Interrupt enable
-#else
+#elif SERIAL_PPM == SERIAL_PPM_ENABLED_PL1
 		FireISRRoutine = 0;
 		hal.gpio->pinMode(48, GPIO_INPUT); // ICP5 pin (PL1) (PPM input) CRIUS v2
 		ISRRegistry* isrregistry = (ISRRegistry*) _isrregistry;
@@ -278,6 +293,8 @@ void MPNGRCInput::init(void* _isrregistry) {
 		TCCR5B = (1<<CS11) | (1<<ICES5); //Prescaler set to 8, resolution of 0.5us, input capture on rising edge 
 		TIMSK5 |= (1<<ICIE5); // Enable Input Capture interrupt. Timer interrupt mask  
 		PCMSK2 = 0;	// Disable INT for pin A8-A15
+#else
+#error You must check SERIAL_PPM mode, something wrong
 #endif
 }
 
